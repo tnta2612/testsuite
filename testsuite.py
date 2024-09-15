@@ -315,7 +315,7 @@ def security_consideration_optimistic_ACK_attack(server, port):
     time.sleep(2)  # Give tshark some time to start up
 
     try:
-        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
     except subprocess.CalledProcessError as e:
         result = f"{server}:{port}\t- Error: {e}"
         logging.error(f"Failed to run client script against {server} on port {port}: {e}")
@@ -378,8 +378,6 @@ def main(server_ports):
         security_consideration_amplification_attack(server, port)
         append_to_results(f"\n")
     
-    print(results_string)
-
     
     logging.info("Patching aioquic code to perform optimistic ACK...")
     # patch aioquic code to perform optimistic ACK

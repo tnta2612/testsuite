@@ -70,7 +70,7 @@ def check_and_build_aioquic():
             subprocess.run("python3 -m venv venv", shell=True, check=True)
             os.environ["PATH"] = f"{os.path.abspath('venv/bin')}:{os.environ['PATH']}"
             subprocess.run("pip install --upgrade pip", shell=True, check=True)
-            subprocess.run("pip install -e . aiofiles asgiref httpbin starlette wsproto werkzeug", shell=True, check=True)
+            subprocess.run("pip install -e . aiofiles asgiref httpbin starlette wsproto werkzeug pyshark", shell=True, check=True)
             logging.info("aioquic cloned, built, and dependencies installed successfully.")
             os.makedirs("log", exist_ok=True)
             os.makedirs("output", exist_ok=True)
