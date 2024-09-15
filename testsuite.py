@@ -315,14 +315,14 @@ def security_consideration_optimistic_ACK_attack(server, port):
     time.sleep(2)  # Give tshark some time to start up
 
     try:
-        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
     except subprocess.CalledProcessError as e:
         result = f"{server}:{port}\t- Error: {e}"
         logging.error(f"Failed to run client script against {server} on port {port}: {e}")
         append_to_results(result)
         sys.exit(1)
     except subprocess.TimeoutExpired:
-        logging.error(f"The command timed out after 5 seconds")
+        logging.warning(f"The command timed out after 5 seconds")
 
     time.sleep(2)  
     # Stop the tshark process after the command completes
@@ -410,7 +410,7 @@ def main(server_ports):
     logging.info("Results Summary:")
     print(results_string)
 
-    
+
 
    
         
@@ -422,5 +422,16 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         print("Example Usage: python3 testsuite.py aioquic:6001,lsquic:6002")
         sys.exit(1)
+    
+    # Record the start time
+    start_time = time.time()
+
     server_ports = sys.argv[1].split(',')
     main(server_ports)
+
+    # Record the end time
+    end_time = time.time()
+
+    # Calculate the runtime
+    runtime = end_time - start_time
+    logging.info(f"Test suite runtime: {runtime} seconds")
