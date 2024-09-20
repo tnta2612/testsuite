@@ -124,6 +124,7 @@ def check_anti_amplification_limit(server, port, client_command):
     time.sleep(2)  # Give tshark some time to start up
 
     try:
+        logging.info(f"Executing client command: {' '.join(client_command)}")
         subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
         time.sleep(2)  
@@ -178,7 +179,21 @@ def check_anti_amplification_limit(server, port, client_command):
 
 def run_test_case_new_token_support(server, port):
     logging.info(f"Running test case new_token_support against {server} on port {port}.")
-    client_command = [
+    client_command_h0 = [
+        "python3", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
+        "--session-ticket", "aioquic/session",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--legacy-http",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        f"https://localhost:{str(port)}/test.html"
+    ]
+    client_command_h3 = [
         "python3", "aioquic/examples/http3_client.py",
         "--ca-certs", "aioquic/tests/pycacert.pem",
         "--secrets-log", "aioquic/secrets.log",
@@ -191,10 +206,15 @@ def run_test_case_new_token_support(server, port):
         "--local-port", "5555",
         f"https://localhost:{str(port)}/test.html"
     ]
+    if server == "msquic":
+        client_command = client_command_h0
+    else:
+        client_command = client_command_h3
     
     remove_log_files()
 
     try:
+        logging.info(f"Executing client command: {' '.join(client_command)}")
         subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         found = search_for_new_token_frame()
 
@@ -222,7 +242,23 @@ def run_test_case_anti_amplification_limit(server, port):
     """
     global address_validation_token
     logging.info(f"Running test case anti_amplification_limit against {server} on port {port}.")
-    client_command = [
+    client_command_h0 = [
+        "python", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
+        "--session-ticket", "aioquic/session",
+        "--zero-rtt",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--legacy-http",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        "--token", address_validation_token,
+        f"https://localhost:{str(port)}/test.html"
+    ]
+    client_command_h3 = [
         "python", "aioquic/examples/http3_client.py",
         "--ca-certs", "aioquic/tests/pycacert.pem",
         "--secrets-log", "aioquic/secrets.log",
@@ -237,6 +273,10 @@ def run_test_case_anti_amplification_limit(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
+    if server == "msquic":
+        client_command = client_command_h0
+    else:
+        client_command = client_command_h3
 
     ret = check_anti_amplification_limit(server, port, client_command)
 
@@ -252,7 +292,23 @@ def run_test_case_anti_amplification_limit(server, port):
 
 def run_test_case_sending_AVT_multiple_times(server, port):
     logging.info(f"Running test case sending_AVT_multiple_times against {server} on port {port}.")
-    client_command = [
+    client_command_h0 = [
+        "python", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
+        "--session-ticket", "aioquic/session_old",
+        "--zero-rtt",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--legacy-http",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        "--token", address_validation_token,
+        f"https://localhost:{str(port)}/test.html"
+    ]
+    client_command_h3 = [
         "python", "aioquic/examples/http3_client.py",
         "--ca-certs", "aioquic/tests/pycacert.pem",
         "--secrets-log", "aioquic/secrets.log",
@@ -267,6 +323,10 @@ def run_test_case_sending_AVT_multiple_times(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
+    if server == "msquic":
+        client_command = client_command_h0
+    else:
+        client_command = client_command_h3
     
     if check_anti_amplification_limit(server, port, client_command):
         result = f"{server}:{port}\t- Server doesn't accept valid Address Validation Tokens multiple times."
@@ -297,11 +357,23 @@ def security_consideration_optimistic_ACK_attack(server, port):
     Run test cases for security consideration Optimistic ACK Attack.
     """
     logging.info(f"Running test cases for security consideration 'Optimistic ACK attack' against {server} on port {port}.")
-    client_command = [
+    client_command_h0 = [
         "python3", "aioquic/examples/http3_client.py",
         "--ca-certs", "aioquic/tests/pycacert.pem",
         "--secrets-log", "aioquic/secrets.log",
-        "--session-ticket", "aioquic/session",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--legacy-http",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        f"https://localhost:{str(port)}/largefile.bin"
+    ]
+    client_command_h3 = [
+        "python3", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
         "--insecure",
         "--output-dir", "aioquic/output",
         "--quic-log", "aioquic/log",
@@ -310,11 +382,17 @@ def security_consideration_optimistic_ACK_attack(server, port):
         "--local-port", "5555",
         f"https://localhost:{str(port)}/largefile.bin"
     ]
+    if server == "msquic":
+        client_command = client_command_h0
+    else:
+        client_command = client_command_h3
+
     # Start tshark in the background
     tshark_process = subprocess.Popen(tshark_sniff_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(2)  # Give tshark some time to start up
 
     try:
+        logging.info(f"Executing client command: {' '.join(client_command)}")
         subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
     except subprocess.CalledProcessError as e:
         result = f"{server}:{port}\t- Error: {e}"
@@ -336,33 +414,58 @@ def security_consideration_optimistic_ACK_attack(server, port):
     logging.info(f"Analyzing captured QUIC packets and searching for CONNECTION_CLOSE frame...")
 
     connection_close_frame_found = False
+    expected_packet_number = None
+    missing_packet_number = 0
+    packet_count = None
 
     for packet in capture:
-        quic_layer = packet.quic
-     
-        # Check if the QUIC layer contains a CONNECTION_CLOSE frame
-        if hasattr(quic_layer, 'cc_error_code') and True:
-            logging.info(f"Found CONNECTION_CLOSE frame in packet {packet.number}")
-            connection_close_frame_found = True
-            # Print error code, and reason phrase
-            error_code = quic_layer.cc_error_code  # Error code
-            reason_phrase = quic_layer.cc_reason_phrase  # Reason phrase
-            
-            logging.info(f"Error Code: {error_code}")
-            logging.info(f"Reason Phrase: {reason_phrase}")
+        if connection_close_frame_found:
+            break
 
-            result = f"{server}:{port}\t- Server terminated the connection upon receiving optimistic ACKs.'"
-            append_to_results(result)
-            result = f"{server}:{port}\t- Error code: {error_code}"
-            append_to_results(result)
-            result = f"{server}:{port}\t- Reason phrase: {reason_phrase}"
-            append_to_results(result)
-            break  # Exit the loop once the frame is found
+        for layer in packet.layers:
+            if layer.layer_name == "quic":
+                current_packet_number = int(layer.packet_number)
+                if (expected_packet_number is None) or (current_packet_number < expected_packet_number):
+                    logging.info(f"Packet number reset.")
+                    missing_packet_number = 0
+                    packet_count = 0
+                elif (current_packet_number > expected_packet_number):
+                    missing_packet_number += current_packet_number - expected_packet_number
+                    while (current_packet_number > expected_packet_number):
+                        logging.info(f"{expected_packet_number} is missing!!!")
+                        expected_packet_number += 1
+
+                expected_packet_number = current_packet_number + 1
+                packet_count += 1
+
+
+#                if (missing_packet_number < 10):
+#                    logging.info(f"Expect {expected_packet_number}, received {current_packet_number}") 
+
+                # Check if the QUIC layer contains a CONNECTION_CLOSE frame
+                if hasattr(layer, 'cc_error_code'):
+                    logging.info(f"Found CONNECTION_CLOSE frame in packet {packet.number}")
+                    connection_close_frame_found = True
+                    # Print error code, and reason phrase
+                    error_code = layer.cc_error_code  # Error code
+                    reason_phrase = layer.cc_reason_phrase  # Reason phrase
+            
+                    logging.info(f"Error Code: {error_code}")
+                    logging.info(f"Reason Phrase: {reason_phrase}")
+
+                    result = f"{server}:{port}\t- Server terminated the connection upon receiving optimistic ACKs."
+                    append_to_results(result)
+                    result = f"{server}:{port}\t- Error code: {error_code}"
+                    append_to_results(result)
+                    result = f"{server}:{port}\t- Reason phrase: {reason_phrase}"
+                    append_to_results(result)
+                    break  # Exit the loop once the frame is found
 
     capture.close()
 
     if not connection_close_frame_found:
-        result = f"{server}:{port}\t- Server didn't terminate the connection upon receiving optimistic ACKs."
+        logging.info(f"Received {packet_count} packets in total. {missing_packet_number} are missing. ")
+        result = f"{server}:{port}\t- Server didn't skip any packet number or didn't terminate the connection upon receiving optimistic ACKs. => susceptible"
         append_to_results(result)
         
     

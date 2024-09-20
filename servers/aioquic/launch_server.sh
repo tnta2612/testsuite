@@ -1,6 +1,13 @@
 #!/bin/bash
-echo "Starting aioquic server on port 6001"
-dd if=/dev/urandom of=examples/htdocs/largefile.bin bs=1M count=1
+if [ -z "$1" ]; then
+  echo "Error: No port provided. Please provide a port number."
+  exit 1
+fi
 
-python3 examples/http3_server.py --certificate tests/ssl_cert.pem --private-key tests/ssl_key.pem --host 0.0.0.0 --port 6001
+PORT=$1
+
+echo "Starting aioquic server on port $PORT"
+dd if=/dev/urandom of=examples/htdocs/largefile.bin bs=1M count=2
+
+python3 examples/http3_server.py --certificate tests/ssl_cert.pem --private-key tests/ssl_key.pem --host 0.0.0.0 --port $PORT
 	

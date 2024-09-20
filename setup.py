@@ -84,7 +84,7 @@ def run_docker_server(server, port):
     """
     try:
         logging.info(f"Starting server: {server} on port: {port}")
-        docker_command = f"sudo docker run --name {server} -p {port}:{port}/udp --rm -d {server}"
+        docker_command = f"sudo docker run --name {server} -p {port}:{port}/udp --rm -d {server} {port}"
         subprocess.run(docker_command, shell=True, check=True)
         logging.info(f"Server {server} started successfully on port {port}.")
     except subprocess.CalledProcessError as e:
