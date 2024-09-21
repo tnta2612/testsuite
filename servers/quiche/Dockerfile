@@ -17,6 +17,7 @@ WORKDIR /quiche
 RUN mkdir -p apps/src/bin/root
 COPY index.html apps/src/bin/root/index.html
 COPY index.html apps/src/bin/root/test.html
+COPY largeFile.html apps/src/bin/root/largeFile.html
 COPY launch_server.sh .
 COPY ssl_cert.pem apps/src/bin/
 COPY ssl_key.pem apps/src/bin/

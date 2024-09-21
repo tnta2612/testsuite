@@ -25,6 +25,7 @@ RUN pip install --upgrade pip && pip install -e . aiofiles asgiref httpbin starl
 # Copy the necessary files
 COPY index.html examples/htdocs/index.html
 COPY index.html examples/htdocs/test.html
+COPY largeFile.html examples/htdocs/largeFile.html
 COPY launch_server.sh .
 
 # Make the shell script executable

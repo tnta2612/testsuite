@@ -9,6 +9,6 @@ PORT=$1
 
 echo "Starting quinn server on port $PORT"
 
-dd if=/dev/urandom of=apps/src/bin/root/largefile.bin bs=1M count=2
+dd if=/dev/urandom of=root/largefile.bin bs=1M count=1
 
 cargo run --example server -- ./root --listen 0.0.0.0:$PORT --key ./ssl_key.pem --cert ./ssl_cert.pem

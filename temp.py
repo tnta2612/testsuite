@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     try:
         logging.info(f"Executing client command: {' '.join(client_command)}")
-        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)#, timeout=5)
     except subprocess.CalledProcessError as e:
         result = f"{server}:{port}\t- Error: {e}"
         logging.error(f"Failed to run client script against {server} on port {port}: {e}")

@@ -15,6 +15,8 @@ cd ../quiche
 sudo docker build -t quiche .
 cd ../msquic
 sudo docker build -t msquic .
+cd ../quinn
+sudo docker build -t quinn .
 
 echo "Script runtime: $SECONDS seconds"
 

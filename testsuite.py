@@ -206,7 +206,7 @@ def run_test_case_new_token_support(server, port):
         "--local-port", "5555",
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server == "msquic":
+    if server in ["msquic", "quinn"]:
         client_command = client_command_h0
     else:
         client_command = client_command_h3
@@ -273,7 +273,7 @@ def run_test_case_anti_amplification_limit(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server == "msquic":
+    if server in ["msquic", "quinn"]:
         client_command = client_command_h0
     else:
         client_command = client_command_h3
@@ -323,7 +323,7 @@ def run_test_case_sending_AVT_multiple_times(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server == "msquic":
+    if server in ["msquic", "quinn"]:
         client_command = client_command_h0
     else:
         client_command = client_command_h3
@@ -368,7 +368,7 @@ def security_consideration_optimistic_ACK_attack(server, port):
         "--legacy-http",
         "--server-name", "www.example.com",
         "--local-port", "5555",
-        f"https://localhost:{str(port)}/largefile.bin"
+        f"https://localhost:{str(port)}/largeFile.html"
     ]
     client_command_h3 = [
         "python3", "aioquic/examples/http3_client.py",
@@ -380,9 +380,9 @@ def security_consideration_optimistic_ACK_attack(server, port):
         "--verbose",
         "--server-name", "www.example.com",
         "--local-port", "5555",
-        f"https://localhost:{str(port)}/largefile.bin"
+        f"https://localhost:{str(port)}/largeFile.html"
     ]
-    if server == "msquic":
+    if server in ["msquic", "quinn"]:
         client_command = client_command_h0
     else:
         client_command = client_command_h3
@@ -417,14 +417,18 @@ def security_consideration_optimistic_ACK_attack(server, port):
     expected_packet_number = None
     missing_packet_number = 0
     packet_count = None
+    complete_file_received = False
+    error_code = None
+    reason_phrase = None
 
     for packet in capture:
         if connection_close_frame_found:
             break
-
         for layer in packet.layers:
-            if layer.layer_name == "quic":
+            if layer.layer_name == "quic" and hasattr(layer, 'packet_number'):
+                
                 current_packet_number = int(layer.packet_number)
+
                 if (expected_packet_number is None) or (current_packet_number < expected_packet_number):
                     logging.info(f"Packet number reset.")
                     missing_packet_number = 0
@@ -438,34 +442,49 @@ def security_consideration_optimistic_ACK_attack(server, port):
                 expected_packet_number = current_packet_number + 1
                 packet_count += 1
 
-
 #                if (missing_packet_number < 10):
 #                    logging.info(f"Expect {expected_packet_number}, received {current_packet_number}") 
 
+                if hasattr(layer, 'stream_fin') and (layer.stream_fin == "True"):
+                    complete_file_received = True
+                
                 # Check if the QUIC layer contains a CONNECTION_CLOSE frame
                 if hasattr(layer, 'cc_error_code'):
                     logging.info(f"Found CONNECTION_CLOSE frame in packet {packet.number}")
                     connection_close_frame_found = True
-                    # Print error code, and reason phrase
-                    error_code = layer.cc_error_code  # Error code
-                    reason_phrase = layer.cc_reason_phrase  # Reason phrase
-            
+                    error_code = layer.cc_error_code
+                    reason_phrase = layer.cc_reason_phrase
                     logging.info(f"Error Code: {error_code}")
                     logging.info(f"Reason Phrase: {reason_phrase}")
-
-                    result = f"{server}:{port}\t- Server terminated the connection upon receiving optimistic ACKs."
-                    append_to_results(result)
-                    result = f"{server}:{port}\t- Error code: {error_code}"
-                    append_to_results(result)
-                    result = f"{server}:{port}\t- Reason phrase: {reason_phrase}"
-                    append_to_results(result)
                     break  # Exit the loop once the frame is found
 
     capture.close()
+    logging.info(f"Received {packet_count} packets in total. {missing_packet_number} are missing.")
+        
+    result = f"{server}:{port}\t- Received {packet_count} packets in total."
+    append_to_results(result)
+    result = f"{server}:{port}\t- {missing_packet_number} packets were skipped (or missed)."
+    append_to_results(result)
+    result = f"{server}:{port}\t- Complete file received: {complete_file_received}"
+    append_to_results(result)
+    
+    if connection_close_frame_found:
+        result = f"{server}:{port}\t- Server terminated the connection upon receiving optimistic ACKs."
+        append_to_results(result)
+        result = f"{server}:{port}\t- Error code: {error_code}"
+        append_to_results(result)
+        result = f"{server}:{port}\t- Reason phrase: {reason_phrase}"
+        append_to_results(result)
+    else:        
 
-    if not connection_close_frame_found:
-        logging.info(f"Received {packet_count} packets in total. {missing_packet_number} are missing. ")
-        result = f"{server}:{port}\t- Server didn't skip any packet number or didn't terminate the connection upon receiving optimistic ACKs. => susceptible"
+        if missing_packet_number > 0:
+            if complete_file_received:
+                result = f"{server}:{port}\t- Packet numbers were skipped (or missed), but server didn't terminate the connection upon receiving optimistic ACKs. => susceptible"
+            else:
+                result = f"{server}:{port}\t- Server terminated the connection, but didn't send CONNECTION_CLOSE frame upon receiving optimistic ACKs."
+        else:
+            result = f"{server}:{port}\t- Server didn't skip any packet number. => susceptible"
+
         append_to_results(result)
         
     
@@ -480,7 +499,7 @@ def main(server_ports):
         port = int(port)
         security_consideration_amplification_attack(server, port)
         append_to_results(f"\n")
-    
+
     
     logging.info("Patching aioquic code to perform optimistic ACK...")
     # patch aioquic code to perform optimistic ACK

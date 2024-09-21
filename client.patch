@@ -32,3 +32,16 @@ index 36bb420..5c1119d 100644
      # load SSL certificate and key
      if args.certificate is not None:
          configuration.load_cert_chain(args.certificate, args.private_key)
+diff --git a/src/aioquic/h0/connection.py b/src/aioquic/h0/connection.py
+index 73c349d..829388b 100644
+--- a/src/aioquic/h0/connection.py
++++ b/src/aioquic/h0/connection.py
+@@ -4,7 +4,7 @@ from aioquic.h3.events import DataReceived, H3Event, Headers, HeadersReceived
+ from aioquic.quic.connection import QuicConnection
+ from aioquic.quic.events import QuicEvent, StreamDataReceived
+ 
+-H0_ALPN = ["hq-interop"]
++H0_ALPN = ["hq-interop", "hq-29"]
+ 
+ 
+ class H0Connection:
