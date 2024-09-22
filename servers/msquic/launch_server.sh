@@ -7,7 +7,6 @@ fi
 
 PORT=$1
 echo "Starting msquic server on port $PORT"
-dd if=/dev/urandom of=root/largefile.bin bs=1M count=1
 
 # The server only server http 0.9/1.1 => use --legacy-http for aioquic client
 ./quicinteropserver -listen:0.0.0.0 -port:$PORT -root:root -file:ssl_cert.pem -key:ssl_key.pem -name:www.example.com -noexit

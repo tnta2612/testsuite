@@ -17,6 +17,8 @@ cd ../msquic
 sudo docker build -t msquic .
 cd ../quinn
 sudo docker build -t quinn .
+cd ../neqo
+sudo docker build -t neqo .
 
 echo "Script runtime: $SECONDS seconds"
 

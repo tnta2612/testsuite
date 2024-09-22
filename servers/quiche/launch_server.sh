@@ -9,6 +9,5 @@ PORT=$1
 
 echo "Starting quiche server on port $PORT"
 
-dd if=/dev/urandom of=apps/src/bin/root/largefile.bin bs=1M count=1
 cargo run --bin quiche-server -- --cert apps/src/bin/ssl_cert.pem --key apps/src/bin/ssl_key.pem --listen 0.0.0.0:$PORT --root apps/src/bin/root/ --name www.example.com --no-retry --max-active-cids 999
 apps/src/bin/root/

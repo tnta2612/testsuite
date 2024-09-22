@@ -123,61 +123,54 @@ def check_anti_amplification_limit(server, port, client_command):
     tshark_process = subprocess.Popen(tshark_sniff_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(2)  # Give tshark some time to start up
 
-    try:
-        logging.info(f"Executing client command: {' '.join(client_command)}")
-        subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    logging.info(f"Executing client command: {' '.join(client_command)}")
+    subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
-        time.sleep(2)  
-        # Stop the tshark process after the command completes
-        tshark_process.terminate()
-        # Wait for tshark to finish writing the capture file
-        tshark_process.wait()
+    time.sleep(2)  
+    # Stop the tshark process after the command completes
+    tshark_process.terminate()
+    # Wait for tshark to finish writing the capture file
+    tshark_process.wait()
 
-        # Read the capture
-        capture = pyshark.FileCapture('./capture.pcap')
+    # Read the capture
+    capture = pyshark.FileCapture('./capture.pcap')
 
-        first_datagram_sent_length = None
-        cumulative_datagram_received_length = 0
-        first_datagram_sent_found = False
+    first_datagram_sent_length = None
+    cumulative_datagram_received_length = 0
+    first_datagram_sent_found = False
 
-        # Process each packet
-        for packet in capture:
-            if 'udp' in packet:
-                if packet.udp.srcport == "5555":
-                    if not first_datagram_sent_found:
-                        first_datagram_sent_length = int(packet.udp.length)
-                        first_datagram_sent_found = True  # Set flag for first datagram
-                    else:
-                        # Stop processing once the second datagram sent is found
-                        break        
-                elif packet.udp.dstport == "5555" and first_datagram_sent_found:
-                    cumulative_datagram_received_length += int(packet.udp.length)
+    # Process each packet
+    for packet in capture:
+        if 'udp' in packet:
+            if packet.udp.srcport == "5555":
+                if not first_datagram_sent_found:
+                    first_datagram_sent_length = int(packet.udp.length)
+                    first_datagram_sent_found = True  # Set flag for first datagram
+                else:
+                    # Stop processing once the second datagram sent is found
+                    break        
+            elif packet.udp.dstport == "5555" and first_datagram_sent_found:
+                cumulative_datagram_received_length += int(packet.udp.length)
         
-        capture.close()
-        logging.info(f"Length of first datagram sent: {first_datagram_sent_length}")
-        logging.info(f"Cumulative length of datagrams received between first and second datagram sent: {cumulative_datagram_received_length}")
+    capture.close()
+    logging.info(f"Length of first datagram sent: {first_datagram_sent_length}")
+    logging.info(f"Cumulative length of datagrams received between first and second datagram sent: {cumulative_datagram_received_length}")
         
-        result = f"{server}:{port}\t- Length of first datagram sent: {first_datagram_sent_length}"
-        append_to_results(result)
-        result = f"{server}:{port}\t- Cumulative length of datagrams received between first and second datagram sent: {cumulative_datagram_received_length}"
-        append_to_results(result)
-        result = f"{server}:{port}\t- Amplification factor: {cumulative_datagram_received_length/first_datagram_sent_length}"
-        append_to_results(result)
+    result = f"{server}:{port}\t- Length of first datagram sent: {first_datagram_sent_length}"
+    append_to_results(result)
+    result = f"{server}:{port}\t- Cumulative length of datagrams received between first and second datagram sent: {cumulative_datagram_received_length}"
+    append_to_results(result)
+    result = f"{server}:{port}\t- Amplification factor: {cumulative_datagram_received_length/first_datagram_sent_length}"
+    append_to_results(result)
 
-        # Check anti-amplification limit with tolerance
-        if 4* first_datagram_sent_length > cumulative_datagram_received_length:
-            return True
-        else:
-            return False
-        
-    except subprocess.CalledProcessError as e:
-        result = f"{server}:{port}\t- Error: {e}"
-        logging.error(f"Failed to run client script against {server} on port {port}: {e}")
-        append_to_results(result)
-        sys.exit(1)
+    # Check anti-amplification limit with tolerance
+    if 4* first_datagram_sent_length > cumulative_datagram_received_length:
+        return True
+    else:
+        return False
 
 
-def run_test_case_new_token_support(server, port):
+def run_test_case_new_token_support(server, port, http3=True):
     logging.info(f"Running test case new_token_support against {server} on port {port}.")
     client_command_h0 = [
         "python3", "aioquic/examples/http3_client.py",
@@ -206,11 +199,11 @@ def run_test_case_new_token_support(server, port):
         "--local-port", "5555",
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server in ["msquic", "quinn"]:
-        client_command = client_command_h0
-    else:
+    if http3:
         client_command = client_command_h3
-    
+    else:
+        client_command = client_command_h0
+
     remove_log_files()
 
     try:
@@ -230,13 +223,12 @@ def run_test_case_new_token_support(server, port):
             return False
         
     except subprocess.CalledProcessError as e:
-        result = f"{server}:{port}\t- Error: {e}"
-        logging.error(f"Failed to run client script against {server} on port {port}: {e}")
-        append_to_results(result)
-        sys.exit(1)
+        logging.error(f"Failed to run HTTP/3 client script against {server} on port {port}: {e}")
+        logging.info(f"Trying again with HTTP/0.9...")
+        return run_test_case_new_token_support(server, port, http3=False)
 
 
-def run_test_case_anti_amplification_limit(server, port):
+def run_test_case_anti_amplification_limit(server, port, http3=True):
     """
     Return True if the server doesn't send more than Anti-Amplification limit (with tolerance), and False otherwise.
     """
@@ -273,12 +265,17 @@ def run_test_case_anti_amplification_limit(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server in ["msquic", "quinn"]:
-        client_command = client_command_h0
-    else:
+    if http3:
         client_command = client_command_h3
+    else:
+        client_command = client_command_h0
 
-    ret = check_anti_amplification_limit(server, port, client_command)
+    try:
+        ret = check_anti_amplification_limit(server, port, client_command)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to run HTTP/3 client script against {server} on port {port}: {e}")
+        logging.info(f"Trying again with HTTP/0.9...")
+        return run_test_case_anti_amplification_limit(server, port, http3=False)
 
     if ret:
         result = f"{server}:{port}\t- Server doesn't send more data than Anti-Amplification limit (when sending 0-RTT with AVT)."
@@ -290,7 +287,7 @@ def run_test_case_anti_amplification_limit(server, port):
         return False
 
 
-def run_test_case_sending_AVT_multiple_times(server, port):
+def run_test_case_sending_AVT_multiple_times(server, port, http3=True):
     logging.info(f"Running test case sending_AVT_multiple_times against {server} on port {port}.")
     client_command_h0 = [
         "python", "aioquic/examples/http3_client.py",
@@ -323,12 +320,19 @@ def run_test_case_sending_AVT_multiple_times(server, port):
         "--token", address_validation_token,
         f"https://localhost:{str(port)}/test.html"
     ]
-    if server in ["msquic", "quinn"]:
-        client_command = client_command_h0
-    else:
+    if http3:
         client_command = client_command_h3
-    
-    if check_anti_amplification_limit(server, port, client_command):
+    else:
+        client_command = client_command_h0
+
+    try:
+        ret = check_anti_amplification_limit(server, port, client_command)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Failed to run HTTP/3 client script against {server} on port {port}: {e}")
+        logging.info(f"Trying again with HTTP/0.9...")
+        return run_test_case_sending_AVT_multiple_times(server, port, http3=False)
+
+    if ret:
         result = f"{server}:{port}\t- Server doesn't accept valid Address Validation Tokens multiple times."
     else:
         result = f"{server}:{port}\t- Server accepts valid Address Validation Tokens multiple times. => SUSCEPTIBLE"
@@ -352,7 +356,7 @@ def security_consideration_amplification_attack(server, port):
             run_test_case_sending_AVT_multiple_times(server, port)
 
 
-def security_consideration_optimistic_ACK_attack(server, port):
+def security_consideration_optimistic_ACK_attack(server, port, http3=True):
     """
     Run test cases for security consideration Optimistic ACK Attack.
     """
@@ -382,10 +386,10 @@ def security_consideration_optimistic_ACK_attack(server, port):
         "--local-port", "5555",
         f"https://localhost:{str(port)}/largeFile.html"
     ]
-    if server in ["msquic", "quinn"]:
-        client_command = client_command_h0
-    else:
+    if http3:
         client_command = client_command_h3
+    else:
+        client_command = client_command_h0
 
     # Start tshark in the background
     tshark_process = subprocess.Popen(tshark_sniff_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -395,10 +399,11 @@ def security_consideration_optimistic_ACK_attack(server, port):
         logging.info(f"Executing client command: {' '.join(client_command)}")
         subprocess.run(client_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
     except subprocess.CalledProcessError as e:
-        result = f"{server}:{port}\t- Error: {e}"
-        logging.error(f"Failed to run client script against {server} on port {port}: {e}")
-        append_to_results(result)
-        sys.exit(1)
+        tshark_process.terminate()
+        tshark_process.wait()
+        logging.error(f"Failed to run HTTP/3 client script against {server} on port {port}: {e}")
+        logging.info(f"Trying again with HTTP/0.9...")
+        return security_consideration_optimistic_ACK_attack(server, port, http3=False)
     except subprocess.TimeoutExpired:
         logging.warning(f"The command timed out after 5 seconds")
 
@@ -542,7 +547,7 @@ def main(server_ports):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Example Usage: python3 testsuite.py aioquic:6001,lsquic:6002")
+        print("Sample Usage: python3 testsuite.py aioquic:6001,lsquic:6002")
         sys.exit(1)
     
     # Record the start time
