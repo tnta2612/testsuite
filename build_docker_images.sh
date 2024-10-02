@@ -19,6 +19,11 @@ cd ../quinn
 sudo docker build -t quinn .
 cd ../neqo
 sudo docker build -t neqo .
+cd ../ngtcp2
+sudo docker build -t ngtcp2 .
+cd ../chromium
+sudo docker build -t chromium .
+
 
 echo "Script runtime: $SECONDS seconds"
 
