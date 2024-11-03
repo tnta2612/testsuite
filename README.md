@@ -3,9 +3,19 @@
 This repository provides tools for validating protection mechanisms of QUIC servers regarding secrutiy considerations in RFC 9000. 
 Docker servers can be run with Docker images whose Dockerfiles are provided.
 
+
+Test suite need sudo previlidge because of network traffic sniffing and iptables
+
+Switch to sudo user: sudo -i
+
+Create a Python virtual environment
+
 ## Prerequisites
 
 Ensure the following are installed on your system before starting:
+
+sudo apt update
+sudo apt install build-essential libnetfilter-queue-dev
 
 - Python 3.x
 - Docker (with `sudo` privileges)
@@ -26,7 +36,7 @@ gnome-session-quit --logout --no-prompt
 Install the required Python packages via pip:
 
 ```bash
-pip install -r requirements.txt
+sudo pip install -r requirements.txt
 ```
 
 ### Applying Patch Files
