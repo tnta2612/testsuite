@@ -59,9 +59,9 @@ def check_and_build_aioquic():
     aioquic_path = "./aioquic"
     
     if os.path.isdir(aioquic_path):
-        logging.info("aioquic is already available in the current repository.")
+        logging.info("aioquic client is already available in the current repository.")
     else:
-        logging.info("aioquic not found. Cloning and building picoquic...")
+        logging.info("aioquic client not found. Cloning and building aioquic...")
         try:
             subprocess.run("git clone https://github.com/aiortc/aioquic", shell=True, check=True)
             os.chdir(aioquic_path)

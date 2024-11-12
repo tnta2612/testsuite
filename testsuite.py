@@ -16,6 +16,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Global variable to store results as a string
 
+nonprobing_frames = {"PATH_CHALLENGE", "PATH_RESPONSE", "NEW_CONNECTION_ID", "PADDING"}
 results_string = ""
 address_validation_token = ""
 tshark_sniff_command = [
@@ -939,24 +940,127 @@ def run_test_case_protocol_impersonation_attack(server, port):
         result = f"{server}:{port}\t- There's no valid DNS response for 'tum.de'"
         
     append_to_results(result)
+
+
+
+
+def run_test_case_non_probing_packet_connnection_migration(server, port, http3=True):
+    logging.info(f"Running test case non_probing_packet_connection_migration against {server} on port {port}.")
+
+    new_IP = "12.12.12.12" # the new IP address that client should migrate to
+
+    client_command_h3 = [
+        "python3", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        f"https://localhost:{str(port)}/largeFile30M.html"
+    ]
+    client_command_h0 = [
+        "python3", "aioquic/examples/http3_client.py",
+        "--ca-certs", "aioquic/tests/pycacert.pem",
+        "--secrets-log", "aioquic/secrets.log",
+        "--insecure",
+        "--output-dir", "aioquic/output",
+        "--quic-log", "aioquic/log",
+        "--verbose",
+        "--legacy-http",
+        "--server-name", "www.example.com",
+        "--local-port", "5555",
+        f"https://localhost:{str(port)}/largeFile30M.html"
+    ]
+    if http3:
+        client_command = client_command_h3
+    else:
+        client_command = client_command_h0
+    # Start tshark in the background
+    tshark_process = subprocess.Popen(['tshark', '-ni', 'any', '-f', 'udp port 5555', '-w', './capture.pcap'])
+    logging.info(f"Tshark started")
+    time.sleep(2)  # Give tshark some time to start up
+
+    try:
+        logging.info(f"Executing client command: {' '.join(client_command)}")
+        client = subprocess.Popen(client_command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)#, timeout=0.3)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error: {e}")
+    except subprocess.TimeoutExpired:
+        logging.info(f"The command timed out.")
+    
+    time.sleep(1)
+    try:
+        logging.info(f"Adding iptables rules to intercept packets...")
+        subprocess.run(f"sudo iptables -I OUTPUT -d 127.0.0.1 -p udp --dport {port} -j NFQUEUE --queue-num 1", shell=True, check=True)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Couldn't add iptables rules!")
+    
+    #Initializing netfilter queue
+    q = NetfilterQueue()
+    q.bind(1, lambda packet : spoof_packet(packet,ip=new_IP, port=5555)) # Migrate to some random IP and port
+    queue_process = multiprocessing.Process(target=run_netfilter_queue, args=(q,))
+    queue_process.start()
+
+    try:
+        client.terminate()
+        queue_process.join(timeout=3)
+        if queue_process.is_alive():
+            q.unbind()  # Unbind the queue to stop processing.
+            queue_process.terminate()
+    except KeyboardInterrupt:
+        logging.error("\n[*] Exiting...")
+    finally:
+        logging.info(f"Removing iptables rules...")
+        subprocess.run(f"sudo iptables -D OUTPUT -d 127.0.0.1 -p udp --dport {port} -j NFQUEUE --queue-num 1", shell=True, check=True)
+
+    time.sleep(2)  
+    # Stop the tshark process
+    tshark_process.terminate()
+    logging.info(f"Tshark terminated")
+
+    # Wait for tshark to finish writing the capture file
+    tshark_process.wait()
+    #client.wait()
+    #print(client.returncode)
+    # Server might not support HTTP/3.0
+    if client.returncode is not None:
+        return run_test_case_non_probing_packet_connnection_migration(server, port, http3=False)
+
+    logging.info(f"Analyzing captured QUIC packets and searching for non-probing packets that were sent to the new IP address...")
+
+    # Read the capture
+    capture = pyshark.FileCapture('./capture.pcap', display_filter='ip.dst_host == 12.12.12.12')
+    stream_frame_found = False
+    for packet in capture:
+        if stream_frame_found:
+            break
+        for layer in packet.layers:
+            if layer.layer_name == "quic" and hasattr(layer, 'stream_data'):
+                logging.info(f"Found STREAM frame sent to the new IP address!!!")
+                stream_frame_found = True
+                break  # Exit the loop once the frame is found
+    
+    append_to_results(f"{server}:{port}\t- Server sent {len([packet for packet in capture])} packets to the new IP address.")
+    capture.close()
+
+    if stream_frame_found:
+        result = f"{server}:{port}\t- Server sent STREAM frames containing data to the unvalidated IP address => susceptible."
+    else:        
+        result = f"{server}:{port}\t- Server didn't send any STREAM frames to the unvalidated IP address."
+    append_to_results(result)
+    
     
 
 def security_consideration_request_forgery_attacks(server, port):
     """
     Run test cases for security consideration Request Forgery Attacks.
     """
-    run_test_case_common_udp_ports_support(server, port)
-    run_test_case_protocol_impersonation_attack(server, port)
-
-
-
-
-def main(server_ports):
-    global results_string
-    results_string = ""
-
-    append_to_results(f"\n---------------------------------------- REQUEST FORGERY ATTACKS ----------------------------------------\n")
     
+    run_test_case_non_probing_packet_connnection_migration(server, port)
+
     logging.info("Patching aioquic code to perform Request Forgery Attacks...")
     try:
         os.chdir("./aioquic")
@@ -965,14 +1069,11 @@ def main(server_ports):
     except subprocess.CalledProcessError as e:
         logging.info(f"Patch for Request Forgery Attacks was already applied")
         os.chdir("..")
-
-    for sp in server_ports:
-        server, port = sp.split(':')
-        port = int(port)
-        security_consideration_request_forgery_attacks(server, port)
-        #run_test_case_common_udp_ports_support(server, port)
-        append_to_results(f"\n")
-
+    
+    run_test_case_common_udp_ports_support(server, port)
+    
+    run_test_case_protocol_impersonation_attack(server, port)
+    
     logging.info("Reversing the patch for Request Forgery Attacks...")
     try:
         os.chdir("./aioquic")
@@ -982,10 +1083,12 @@ def main(server_ports):
         logging.error(f"Failed to reverse the patch for Request Forgery Attacks: {e}")
         sys.exit(1)
 
-    logging.info("Results Summary:")
-    print(results_string)
 
-"""
+
+def main(server_ports):
+    global results_string
+    results_string = ""
+
     append_to_results(f"\n---------------------------------------- AMPLIFICATION ATTACK ----------------------------------------\n")
 
     for sp in server_ports:
@@ -1020,8 +1123,17 @@ def main(server_ports):
     except subprocess.CalledProcessError as e:
         logging.error(f"Failed to reverse the patch for Optimistic ACK Attack: {e}")
         sys.exit(1)
-"""
 
+    append_to_results(f"\n---------------------------------------- REQUEST FORGERY ATTACKS ----------------------------------------\n")
+
+    for sp in server_ports:
+        server, port = sp.split(':')
+        port = int(port)
+        security_consideration_request_forgery_attacks(server, port)
+        append_to_results(f"\n")
+
+    logging.info("Results Summary:")
+    print(results_string)
 
 
 

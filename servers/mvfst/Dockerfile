@@ -61,6 +61,7 @@ RUN mkdir -p root
 COPY index.html root/index.html
 COPY index.html root/test.html
 COPY largeFile.html root/largeFile.html
+COPY largeFile30M.html root/largeFile30M.html
 COPY launch_server.sh .
 COPY ssl_cert.pem .
 COPY ssl_key.pem .

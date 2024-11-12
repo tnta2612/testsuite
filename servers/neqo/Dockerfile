@@ -28,6 +28,7 @@ RUN chmod 777 /www
 COPY index.html /www/index.html
 COPY index.html /www/test.html
 COPY largeFile.html /www/largeFile.html
+COPY largeFile30M.html /www/largeFile30M.html
 COPY launch_server.sh .
 COPY ssl_cert.pem /
 COPY ssl_key.pem /

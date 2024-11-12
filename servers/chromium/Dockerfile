@@ -36,6 +36,7 @@ RUN mkdir -p root
 COPY index.html root/index.html
 COPY test.html root/test.html
 COPY largeFile.html root/largeFile.html
+COPY largeFile30M.html root/largeFile30M.html
 COPY launch_server.sh .
 
 # Make the shell script executable
